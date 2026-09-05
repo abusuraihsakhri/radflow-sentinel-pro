@@ -1,9 +1,13 @@
 """
 Automated Pytest for radflow-sentinel-pro Enrichment Modules.
 """
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Set required environment variable before importing agents
+os.environ.setdefault("AUDIT_SECRET_KEY", "test-audit-secret-key-for-unit-tests-only")
 
 import pytest
 from enrichment import (

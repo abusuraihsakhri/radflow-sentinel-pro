@@ -1,4 +1,9 @@
+import os
 import pytest
+
+# Set required environment variable before importing agents
+os.environ.setdefault("AUDIT_SECRET_KEY", "test-audit-secret-key-for-unit-tests-only")
+
 from radflow_sentinel_pro import AcuteCriticalFinderAgent, IncidentalomaTrackerAgent, ContrastSafetyAuditorAgent, SentinelCoordinatorPro, main
 
 

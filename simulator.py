@@ -1,9 +1,14 @@
 """
 Distributed Component High-Throughput Traffic & Stress Testing Simulator for Radflow Sentinel Pro.
 """
+import os
 import time
 import random
 import sys
+
+# Set default audit key for simulation if not configured
+os.environ.setdefault("AUDIT_SECRET_KEY", "simulation-audit-key-2026")
+
 from agents.models import SystemTaskPayload
 from agents.supervisor import SystemSupervisor
 from agents.base import PHIGuard, SecurityException, AuditLogger

@@ -125,7 +125,7 @@
     <div class="header">
         <div class="header-title">
             <h1>Radflow Sentinel Pro</h1>
-            <p>Domain: Clinical & Cryptographic AI | Standard: CAP / CLSI / NIST Standards | LabMind-Atlas Architecture</p>
+            <p>Domain: Radiology & Neuroimaging Systems | Standard: ACR RADS / Fleischner Society / ASPECTS Guidelines</p>
         </div>
         <div>
             <span class="badge">Air-Gapped Active</span>
@@ -219,7 +219,7 @@
                 consoleEl.innerText = "// Offline / Simulation Output:\n" + JSON.stringify({
                     dossier_id: "DOSSIER-SIM-" + Math.floor(Math.random()*10000),
                     system: "radflow-sentinel-pro",
-                    domain: "Clinical & Cryptographic AI",
+                    domain: "Radiology & Neuroimaging Systems",
                     task_id: payload.task_id,
                     overall_urgency: payload.is_critical_flag ? "CRITICAL_STAT_PANIC" : "ELEVATED_RISK",
                     integrity_status: "DISCORDANT_ANOMALY",
