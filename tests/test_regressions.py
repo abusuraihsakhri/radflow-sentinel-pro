@@ -31,6 +31,11 @@ def test_ambiguous_csv_boolean_rejected():
 def test_ground_glass_small_nodule_path():
     result = FleischnerGuidelines.get_recommendation("ground_glass", 5.0)
     assert result["interval_months"] == 0
+    assert FleischnerGuidelines.get_recommendation("part_solid", 5.0)["interval_months"] == 0
+    low_risk = FleischnerGuidelines.get_recommendation("solid", 7.0, is_high_risk=False)
+    high_risk = FleischnerGuidelines.get_recommendation("solid", 7.0, is_high_risk=True)
+    assert low_risk["interval_months"] == high_risk["interval_months"] == 6
+    assert "18-24" in low_risk["action"]
 
 
 @pytest.mark.parametrize("value", [-1, float("nan"), float("inf")])
