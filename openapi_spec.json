@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Radflow Sentinel Pro API",
-    "description": "Enterprise Distributed Component Platform (Clinical & Cryptographic AI) adhering to CAP / CLSI / NIST Standards.",
+    "description": "Synthetic radiology systems supervisory API; generic rules, not clinically validated.",
     "version": "3.0.0-ENTERPRISE",
     "contact": {
       "name": "Dr. Abu Suraih Sakhri",
@@ -22,12 +22,24 @@
     },
     "/metrics": {
       "get": {
-        "summary": "Prometheus operational metrics",
+        "summary": "Prometheus plain-text counters, authenticated",
         "responses": {
           "200": {
-            "description": "Prometheus text metrics"
+            "description": "Prometheus exposition",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "ApiBearer": []
+          }
+        ]
       }
     },
     "/api/audit": {
@@ -71,12 +83,17 @@
           "200": {
             "description": "Consensus dossier with HMAC signature"
           }
-        }
+        },
+        "security": [
+          {
+            "ApiBearer": []
+          }
+        ]
       }
     },
     "/api/chat": {
       "post": {
-        "summary": "Air-gapped supervisory conversational assistant",
+        "summary": "Deterministic mock chat reply",
         "requestBody": {
           "content": {
             "application/json": {
@@ -98,7 +115,12 @@
           "200": {
             "description": "Supervisory response"
           }
-        }
+        },
+        "security": [
+          {
+            "ApiBearer": []
+          }
+        ]
       }
     },
     "/api/audit/logs": {
@@ -108,7 +130,21 @@
           "200": {
             "description": "Cryptographic audit trail"
           }
-        }
+        },
+        "security": [
+          {
+            "ApiBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Opaque token"
       }
     }
   }
