@@ -58,7 +58,7 @@ class AuditTrail:
     """Cryptographic Tamper-Evident HMAC-SHA256 Audit Trail."""
     def __init__(self, secret_key: Optional[str] = None):
         resolved_key = secret_key or os.getenv("AUDIT_SECRET_KEY")
-        if not resolved_key:
+        if not resolved_key or resolved_key.startswith(("replace-with", "change-me")):
             raise SecurityException(
                 "AUDIT_SECRET_KEY environment variable is required. "
                 "Set it before instantiating AuditTrail."
@@ -69,6 +69,8 @@ class AuditTrail:
     def log(self, actor: str, actor_tier: str, event_type: str, details: Dict[str, Any]) -> Dict[str, Any]:
         payload_str = json.dumps(details, sort_keys=True)
         assert_no_phi(payload_str)
+        for label in (actor, actor_tier, event_type):
+            assert_no_phi(label)
         payload_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
         audit_id = f"AUDIT-{int(time.time()*1000)}-{len(self.logs)+1}"
         ts = datetime.now(timezone.utc).isoformat()
@@ -89,17 +91,26 @@ class AuditTrail:
         return entry
 
     def verify_integrity(self) -> bool:
-        for i, entry in enumerate(self.logs):
-            # Verify chain linkage
-            prev = self.logs[i-1]["current_hash"] if i > 0 else "GENESIS_BLOCK_0000000000000000"
-            if entry["prev_hash"] != prev:
-                return False
-            # Verify HMAC signature
-            sign_string = f"{entry['audit_id']}|{entry['timestamp']}|{entry['actor']}|{entry['actor_tier']}|{entry['event_type']}|{entry['payload_hash']}|{entry['prev_hash']}"
-            expected_sig = hmac.new(self.secret_key, sign_string.encode("utf-8"), hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(entry["current_hash"], expected_sig):
-                return False
-        return True
+        """Validate every signature and link without raising on corrupted records."""
+        try:
+            expected_prev = "GENESIS_BLOCK_0000000000000000"
+            for entry in self.logs:
+                if entry["prev_hash"] != expected_prev:
+                    return False
+                sign_string = (
+                    f"{entry['audit_id']}|{entry['timestamp']}|{entry['actor']}|"
+                    f"{entry['actor_tier']}|{entry['event_type']}|{entry['payload_hash']}|"
+                    f"{entry['prev_hash']}"
+                )
+                expected_sig = hmac.new(
+                    self.secret_key, sign_string.encode("utf-8"), hashlib.sha256
+                ).hexdigest()
+                if not hmac.compare_digest(str(entry["current_hash"]), expected_sig):
+                    return False
+                expected_prev = entry["current_hash"]
+            return True
+        except (KeyError, TypeError, ValueError):
+            return False
 
     def get_trail(self) -> List[Dict[str, Any]]:
         return self.logs

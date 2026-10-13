@@ -88,7 +88,14 @@ class IncidentalomaTrackerAgent:
     """Specialized Sub-Agent 2 for radflow-sentinel-pro"""
     def evaluate(self, payload: Dict[str, Any]) -> List[AgentAlert]:
         alerts = []
-        is_critical = bool(payload.get("critical_flag", False))
+        flag = payload.get("critical_flag", False)
+        if isinstance(flag, str):
+            token = flag.strip().lower()
+            if token not in ("true", "false", "1", "0", "yes", "no", "y", "n", ""):
+                raise ValueError(f"Invalid critical_flag: {flag!r}")
+            is_critical = token in ("true", "1", "yes", "y")
+        else:
+            is_critical = bool(flag)
         val2 = float(payload.get("metric_secondary", 5.0))
         if is_critical or val2 > 12.0:
             alerts.append(

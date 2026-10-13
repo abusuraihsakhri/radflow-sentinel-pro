@@ -5,9 +5,14 @@ import argparse
 import csv
 import json
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from agents.models import SystemTaskPayload
 from agents.supervisor import SystemSupervisor
 from agents.base import AuditLogger
+from radflow_sentinel_pro.csv_utils import parse_csv_bool
 
 supervisor = SystemSupervisor(model_provider="mock")
 
@@ -77,7 +82,7 @@ def main(argv=None):
         trail = AuditLogger.get_trail()
         valid = AuditLogger.verify_integrity()
         print(f"Audit Trail Blocks: {len(trail)} | Cryptographic Integrity Verified: {valid}")
-        return 0
+        return 0 if valid else 1
 
     if args.command == "batch":
         with open(args.input, mode="r", encoding="utf-8-sig") as f:
@@ -85,19 +90,27 @@ def main(argv=None):
             fieldnames = list(reader.fieldnames or [])
             rows = list(reader)
 
-        out_fields = fieldnames + ["overall_urgency", "integrity_status", "total_alerts", "audit_hash"]
+        out_fields = list(dict.fromkeys(fieldnames + ["overall_urgency", "integrity_status", "total_alerts", "audit_hash"]))
         out_rows = []
-        for r in rows:
-            payload = SystemTaskPayload(
-                task_id=r.get("task_id", "TASK-01"),
-                target_identifier=r.get("target_identifier", "TARGET-01"),
-                primary_metric=float(r.get("primary_metric", 15.0)),
-                secondary_metric=float(r.get("secondary_metric", 5.0)),
-                status_descriptor=r.get("status_descriptor", "NOMINAL"),
-                is_critical_flag=bool(r.get("is_critical_flag", False)),
-            )
-            dossier = supervisor.process_task(payload)
-            row_dict = dict(r)
+
+        def column(row, *names, default=None):
+            return next((row[name] for name in names if row.get(name) not in (None, "")), default)
+
+        for line_number, row in enumerate(rows, start=2):
+            try:
+                payload = SystemTaskPayload(
+                    task_id=column(row, "task_id", "case_id", default="TASK-01"),
+                    target_identifier=column(row, "target_identifier", "patient_synthetic_id", default="TARGET-01"),
+                    primary_metric=float(column(row, "primary_metric", "metric_primary", default=15.0)),
+                    secondary_metric=float(column(row, "secondary_metric", "metric_secondary", default=5.0)),
+                    status_descriptor=column(row, "status_descriptor", "status_flag", default="NOMINAL"),
+                    is_critical_flag=parse_csv_bool(column(row, "is_critical_flag", "is_stat", "critical_flag"), field="critical flag"),
+                )
+                dossier = supervisor.process_task(payload)
+            except (ValueError, TypeError) as exc:
+                print(f"CSV row {line_number}: {exc}", file=sys.stderr)
+                return 2
+            row_dict = dict(row)
             row_dict["overall_urgency"] = dossier.overall_urgency.value
             row_dict["integrity_status"] = dossier.integrity_status.value
             row_dict["total_alerts"] = dossier.total_alerts

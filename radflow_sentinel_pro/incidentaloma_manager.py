@@ -5,6 +5,7 @@ Manages the complete lifecycle of incidental findings from detection to resoluti
 """
 
 import datetime
+import math
 import uuid
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
@@ -84,7 +85,7 @@ class FleischnerGuidelines:
 
     SOLID_NODULE_LOW_RISK = {
         "<6mm": {"interval_months": 0, "action": "No follow-up required", "modality": "N/A"},
-        "6-8mm": {"interval_months": 12, "action": "Optional CT at 12 months", "modality": "CT Chest"},
+        "6-8mm": {"interval_months": 6, "action": "CT at 6-12 months, then consider CT at 18-24 months", "modality": "CT Chest"},
         ">8mm": {"interval_months": 3, "action": "CT at 3 months, consider PET/CT or tissue sampling", "modality": "CT Chest"},
     }
 
@@ -108,6 +109,8 @@ class FleischnerGuidelines:
         is_high_risk: bool = False,
     ) -> Dict[str, Any]:
         """Get Fleischner guideline recommendation for a pulmonary nodule."""
+        if size_mm < 0 or not math.isfinite(size_mm):
+            raise ValueError("size_mm must be a finite, non-negative measurement")
         if nodule_type == "solid":
             table = cls.SOLID_NODULE_HIGH_RISK if is_high_risk else cls.SOLID_NODULE_LOW_RISK
             if size_mm < 6:
@@ -118,10 +121,12 @@ class FleischnerGuidelines:
                 return table[">8mm"]
         elif nodule_type == "ground_glass":
             if size_mm < 6:
-                return table.get("ground_glass_<6mm", {"interval_months": 0, "action": "No routine follow-up", "modality": "N/A"})
+                return cls.SUBSOLID_NODULES["ground_glass_<6mm"]
             else:
                 return cls.SUBSOLID_NODULES["ground_glass_>=6mm"]
         elif nodule_type == "part_solid":
+            if size_mm < 6:
+                return cls.SUBSOLID_NODULES["ground_glass_<6mm"]
             return cls.SUBSOLID_NODULES["part_solid"]
         return {"interval_months": 0, "action": "Clinical correlation recommended", "modality": "N/A"}
 
@@ -151,13 +156,17 @@ class TIRADSGuidelines:
     def calculate_score(cls, composition: str, echogenicity: str, shape: str,
                         margin: str, echogenic_foci: str) -> int:
         """Calculate TI-RADS total score."""
-        return (
-            cls.TI_RADS_COMPOSITION.get(composition, 0) +
-            cls.TI_RADS_ECHOGENICITY.get(echogenicity, 0) +
-            cls.TI_RADS_SHAPE.get(shape, 0) +
-            cls.TI_RADS_MARGIN.get(margin, 0) +
-            cls.TI_RADS_ECHOGENIC_FOCI.get(echogenic_foci, 0)
+        options = (
+            ("composition", composition, cls.TI_RADS_COMPOSITION),
+            ("echogenicity", echogenicity, cls.TI_RADS_ECHOGENICITY),
+            ("shape", shape, cls.TI_RADS_SHAPE),
+            ("margin", margin, cls.TI_RADS_MARGIN),
+            ("echogenic_foci", echogenic_foci, cls.TI_RADS_ECHOGENIC_FOCI),
         )
+        for label, value, allowed in options:
+            if value not in allowed:
+                raise ValueError(f"Unsupported TI-RADS {label}: {value!r}")
+        return sum(allowed[value] for _, value, allowed in options)
 
     @classmethod
     def get_category(cls, score: int) -> str:
@@ -175,26 +184,40 @@ class TIRADSGuidelines:
 
     @classmethod
     def get_recommendation(cls, category: str, size_mm: float) -> Dict[str, Any]:
-        """Get TI-RADS recommendation based on category and size."""
-        recommendations = {
-            "TR1": {"action": "No FNA or follow-up", "interval_months": 0},
-            "TR2": {"action": "No FNA or follow-up", "interval_months": 0},
-            "TR3": {"action": "FNA if ≥25mm, follow-up if ≥15mm", "interval_months": 12},
-            "TR4": {"action": "FNA if ≥15mm, follow-up if ≥10mm", "interval_months": 12},
-            "TR5": {"action": "FNA if ≥10mm, follow-up if ≥5mm", "interval_months": 12},
+        """Return the size-dependent initial action for supported ACR TI-RADS tiers."""
+        if not math.isfinite(size_mm) or size_mm < 0:
+            raise ValueError("size_mm must be a finite, non-negative measurement")
+        thresholds = {
+            "TR1": (None, None),
+            "TR2": (None, None),
+            "TR3": (25, 15),
+            "TR4": (15, 10),
+            "TR5": (10, 5),
         }
-        rec = recommendations.get(category, {"action": "Clinical correlation", "interval_months": 0})
+        if category not in thresholds:
+            raise ValueError(f"Unsupported TI-RADS category: {category!r}")
 
-        # Size-based FNA thresholds
-        fna_thresholds = {"TR1": 999, "TR2": 999, "TR3": 25, "TR4": 15, "TR5": 10}
-        followup_thresholds = {"TR1": 999, "TR2": 999, "TR3": 15, "TR4": 10, "TR5": 5}
-
-        if size_mm >= fna_thresholds.get(category, 999):
-            rec["action"] = f"FNA recommended (size {size_mm}mm ≥ threshold)"
-        elif size_mm >= followup_thresholds.get(category, 999):
-            rec["action"] = f"Follow-up ultrasound recommended (size {size_mm}mm)"
-
-        return rec
+        biopsy_mm, surveillance_mm = thresholds[category]
+        if biopsy_mm is not None and size_mm >= biopsy_mm:
+            return {
+                "action": f"FNA recommended (size {size_mm:g}mm meets {category} biopsy threshold)",
+                "interval_months": 0,
+                "modality": "Ultrasound-guided FNA",
+                "requires_fna": True,
+            }
+        if surveillance_mm is not None and size_mm >= surveillance_mm:
+            return {
+                "action": f"Follow-up ultrasound recommended (size {size_mm:g}mm)",
+                "interval_months": 12,
+                "modality": "Thyroid ultrasound",
+                "requires_fna": False,
+            }
+        return {
+            "action": "No FNA or routine ultrasound follow-up by TI-RADS size threshold",
+            "interval_months": 0,
+            "modality": "N/A",
+            "requires_fna": False,
+        }
 
 
 class IncidentalomaManager:
@@ -245,20 +268,26 @@ class IncidentalomaManager:
             risk_level = RiskLevel.INTERMEDIATE.value
             guideline = "Clinical judgment"
 
+        months = rec.get("interval_months", 0)
+        requires_fna = rec.get("requires_fna", False)
+        action_required = requires_fna or months > 0
+        scheduled_date = (
+            now if requires_fna else
+            (datetime.datetime.fromisoformat(now) + datetime.timedelta(days=30 * months)).isoformat()
+            if months > 0 else None
+        )
+
         follow_up = FollowUpRecommendation(
             recommendation_id=f"FU-{uuid.uuid4().hex[:6].upper()}",
             incidentaloma_type=incidentaloma_type,
             finding_description=finding_description,
             risk_level=risk_level,
-            recommended_interval_months=rec.get("interval_months", 0),
+            recommended_interval_months=months,
             recommended_modality=rec.get("modality", "N/A"),
             guideline_source=guideline,
             rationale=rec.get("action", "Clinical correlation"),
-            follow_up_status=FollowUpStatus.SCHEDULED.value if rec.get("interval_months", 0) > 0 else FollowUpStatus.RESOLVED.value,
-            scheduled_date=(
-                (datetime.datetime.fromisoformat(now) + datetime.timedelta(days=30 * rec.get("interval_months", 0))).isoformat()
-                if rec.get("interval_months", 0) > 0 else None
-            ),
+            follow_up_status=FollowUpStatus.SCHEDULED.value if action_required else FollowUpStatus.RESOLVED.value,
+            scheduled_date=scheduled_date,
             completed_date=None,
             created_at=now,
         )

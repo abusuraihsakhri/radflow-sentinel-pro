@@ -1,11 +1,13 @@
 """
 FastAPI REST API Server for Radflow Sentinel Pro.
 """
-from typing import Dict, Any, List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from .base import AuditLogger, PHIGuard
-from .models import SystemTaskPayload, ConsensusDossier
+from .base import AuditLogger, SecurityException
+from radflow_sentinel_pro.api_security import require_api_token
+from .metrics import GLOBAL_METRICS
+from .models import SystemTaskPayload
 from .supervisor import SystemSupervisor
 
 supervisor = SystemSupervisor(model_provider="mock")
@@ -26,30 +28,29 @@ def health():
     return {"status": "HEALTHY", "service": "radflow-sentinel-pro", "domain": "Radiology & Neuroimaging Systems", "standard": "ACR RADS / Fleischner Society / ASPECTS Guidelines", "version": "3.0.0-ENTERPRISE"}
 
 
-@app.get("/metrics")
+@app.get("/metrics", response_class=PlainTextResponse, dependencies=[Depends(require_api_token)])
 def metrics():
-    return {
-        "dossiers_processed_total": len(supervisor.dossier_registry),
-        "audit_blocks_total": len(AuditLogger.get_trail()),
-        "system_status": "NOMINAL_OPTIMAL"
-    }
+    return GLOBAL_METRICS.export_prometheus_text()
 
 
 @app.post("/api/audit")
-def api_audit(payload: SystemTaskPayload):
-    dossier = supervisor.process_task(payload)
-    return dossier.to_dict()
+def api_audit(payload: SystemTaskPayload, _: None = Depends(require_api_token)):
+    try:
+        dossier = supervisor.process_task(payload)
+        return dossier.to_dict()
+    except SecurityException:
+        raise HTTPException(status_code=400, detail="Sensitive identifier rejected")
 
 
 @app.post("/api/chat")
-def api_chat(req: ChatRequest):
+def api_chat(req: ChatRequest, _: None = Depends(require_api_token)):
     try:
         ans = supervisor.query_supervisory_chat(req.query)
         return {"response": ans}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except SecurityException:
+        raise HTTPException(status_code=400, detail="Sensitive identifier rejected")
 
 
 @app.get("/api/audit/logs")
-def api_audit_logs():
+def api_audit_logs(_: None = Depends(require_api_token)):
     return {"audit_trail": AuditLogger.get_trail(), "verified": AuditLogger.verify_integrity()}
