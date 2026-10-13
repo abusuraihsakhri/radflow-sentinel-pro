@@ -58,7 +58,7 @@ class AuditTrail:
     """Cryptographic Tamper-Evident HMAC-SHA256 Audit Trail."""
     def __init__(self, secret_key: Optional[str] = None):
         resolved_key = secret_key or os.getenv("AUDIT_SECRET_KEY")
-        if not resolved_key:
+        if not resolved_key or resolved_key.startswith(("replace-with", "change-me")):
             raise SecurityException(
                 "AUDIT_SECRET_KEY environment variable is required. "
                 "Set it before instantiating AuditTrail."
