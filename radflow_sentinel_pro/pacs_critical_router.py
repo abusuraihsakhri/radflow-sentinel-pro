@@ -84,7 +84,7 @@ class PACSCriticalResultRouter:
     Imaging Findings with escalation protocols.
     """
 
-    # ACR-mandated escalation timelines (minutes)
+    # Illustrative local escalation defaults (minutes); configure to local policy
     ESCALATION_TIMELINES = {
         "CRITICAL": 30,      # Critical: 30 min to first attempt
         "URGENT": 120,       # Urgent: 2 hours
