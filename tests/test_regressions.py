@@ -60,8 +60,8 @@ def test_two_csv_entrypoints_treat_false_as_false(tmp_path, monkeypatch):
     monkeypatch.setenv("AUDIT_SECRET_KEY", "test-only-audit-key")
     source = tmp_path / "cases.csv"
     source.write_text(
-        "case_id,patient_synthetic_id,metric_primary,metric_secondary,is_stat,status_flag\\n"
-        "CASE-01,SYNTH-01,10,2,False,NORMAL\\n", encoding="utf-8"
+        "case_id,patient_synthetic_id,metric_primary,metric_secondary,is_stat,status_flag\n"
+        "CASE-01,SYNTH-01,10,2,False,NORMAL\n", encoding="utf-8"
     )
     clinical_output = tmp_path / "clinical.csv"
     supervisor_output = tmp_path / "supervisor.csv"
@@ -76,8 +76,8 @@ def test_two_csv_entrypoints_treat_false_as_false(tmp_path, monkeypatch):
 def test_invalid_boolean_does_not_write_output(tmp_path):
     source = tmp_path / "invalid.csv"
     source.write_text(
-        "case_id,metric_primary,metric_secondary,is_stat\\n"
-        "CASE-01,10,2,unknown\\n", encoding="utf-8"
+        "case_id,metric_primary,metric_secondary,is_stat\n"
+        "CASE-01,10,2,unknown\n", encoding="utf-8"
     )
     output = tmp_path / "out.csv"
     assert clinical_main(["batch", "-i", str(source), "-o", str(output)]) == 2
