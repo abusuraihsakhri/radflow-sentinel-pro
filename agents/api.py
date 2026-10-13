@@ -25,20 +25,6 @@ class ChatRequest(BaseModel):
     query: str
 
 
-def require_api_token(authorization: Optional[str] = Header(default=None)) -> None:
-    """Fail closed unless an operator configures and supplies a bearer token."""
-    expected = os.getenv("API_TOKEN", "")
-    if not expected:
-        raise HTTPException(status_code=503, detail="API_TOKEN is not configured")
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required",
-                            headers={"WWW-Authenticate": "Bearer"})
-    supplied = authorization[len("Bearer "):]
-    if not hmac.compare_digest(supplied, expected):
-        raise HTTPException(status_code=401, detail="Invalid token",
-                            headers={"WWW-Authenticate": "Bearer"})
-
-
 @app.get("/health")
 def health():
     return {"status": "HEALTHY", "service": "radflow-sentinel-pro", "domain": "Radiology & Neuroimaging Systems", "standard": "ACR RADS / Fleischner Society / ASPECTS Guidelines", "version": "3.0.0-ENTERPRISE"}
