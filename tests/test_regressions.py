@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from fastapi.testclient import TestClient
 
 from radflow_sentinel_pro.csv_utils import parse_csv_bool
-from radflow_sentinel_pro.incidentaloma_manager import FleischnerGuidelines, TIRADSGuidelines
+from radflow_sentinel_pro.incidentaloma_manager import FleischnerGuidelines, TIRADSGuidelines, IncidentalomaManager
 from radflow_sentinel_pro.nlp_report_parser import NLPReportParser
 from radflow_sentinel_pro.cli import main as clinical_main
 from radflow_sentinel_pro.server import create_app
@@ -77,6 +77,32 @@ def test_invalid_tirads_features_are_rejected():
         TIRADSGuidelines.calculate_score(
             "unknown", "isoechoic", "wider_than_tall", "smooth", "none"
         )
+
+
+def test_tirads_actions_and_tracking_by_size():
+    under = TIRADSGuidelines.get_recommendation("TR4", 9)
+    surveillance = TIRADSGuidelines.get_recommendation("TR4", 11)
+    biopsy = TIRADSGuidelines.get_recommendation("TR4", 16)
+    assert under["interval_months"] == 0 and under["requires_fna"] is False
+    assert surveillance["interval_months"] == 12 and surveillance["requires_fna"] is False
+    assert biopsy["interval_months"] == 0 and biopsy["requires_fna"] is True
+
+    manager = IncidentalomaManager()
+    record = manager.register_incidentaloma(
+        patient_ref="SYNTH-1",
+        incidentaloma_type="thyroid_nodule",
+        finding_description="Synthetic TR4 finding",
+        size_mm=16,
+        location="thyroid",
+        composition="solid",
+        echogenicity="hypoechoic",
+        shape="wider_than_tall",
+        margin="smooth",
+        echogenic_foci="none",
+    )
+    assert record.follow_ups[0]["follow_up_status"] == "SCHEDULED"
+    assert record.follow_ups[0]["scheduled_date"] is not None
+    assert "FNA" in record.follow_ups[0]["rationale"]
 
 
 def test_radiology_negation_is_not_critical():
