@@ -3,6 +3,7 @@ import csv
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from fastapi.testclient import TestClient
 
 from radflow_sentinel_pro.csv_utils import parse_csv_bool
@@ -11,6 +12,9 @@ from radflow_sentinel_pro.nlp_report_parser import NLPReportParser
 from radflow_sentinel_pro.cli import main as clinical_main
 from radflow_sentinel_pro.server import create_app
 from agents.api import app as supervisor_app
+from agents.base import AuditTrail
+from agents.models import SystemTaskPayload
+from radflow_sentinel_pro.models import ClinicalCasePayload
 from agents.llm_factory import LLMFactory
 from cli import main as supervisor_main
 
@@ -45,6 +49,27 @@ def test_invalid_nodule_dimensions_rejected(value):
     with pytest.raises(ValueError):
         TIRADSGuidelines.get_recommendation("TR4", value)
 
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_nonfinite_measurements_are_rejected(bad):
+    with pytest.raises(ValidationError):
+        SystemTaskPayload(task_id="TASK-1", target_identifier="SYNTH-1", primary_metric=bad)
+    with pytest.raises(ValueError):
+        ClinicalCasePayload(
+            case_id="CASE-1", patient_synthetic_id="SYNTH-1",
+            primary_metric=bad, secondary_metric=1, status_flag="NOMINAL",
+        )
+
+
+def test_audit_integrity_rejects_deleted_fields_and_rewrites():
+    trail = AuditTrail(secret_key="test-only-audit-key")
+    trail.log("system", "test", "CREATED", {"identifier": "SYNTH-1"})
+    assert trail.verify_integrity()
+    trail.logs[0]["actor"] = "tampered"
+    assert trail.verify_integrity() is False
+    del trail.logs[0]["timestamp"]
+    assert trail.verify_integrity() is False
 
 
 def test_invalid_tirads_features_are_rejected():
