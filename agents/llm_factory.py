@@ -1,7 +1,4 @@
-"""
-Inference Engine supporting local Ollama, Claude, OpenAI, and deterministic Mock with Zero-PHI checks.
-"""
-from typing import Dict, Any, Optional
+"""Deterministic mock-only supervisory response adapter."""
 from .base import PHIGuard
 
 
@@ -11,20 +8,17 @@ class MockLLM:
 
     def invoke(self, prompt: str) -> str:
         PHIGuard.assert_no_phi(prompt)
-        return f"[{self.system_name} mock response]: No clinical analysis was performed. Query received: '{prompt[:60]}...'."
+        return (
+            f"[{self.system_name} mock response]: No clinical analysis was performed. "
+            f"Query received: {prompt[:60]!r}."
+        )
 
 
 class LLMFactory:
-    """Creates configured LLM client instances with zero-PHI protection."""
+    """Create implemented providers without silently substituting another provider."""
 
     @staticmethod
     def create(provider: str = "mock", system_name: str = "Radflow Sentinel Pro"):
-        prov = str(provider).lower()
-        if prov in ["mock", "deterministic", "test"]:
+        if str(provider).lower() in {"mock", "deterministic", "test"}:
             return MockLLM(system_name)
         raise ValueError(f"Unsupported model provider {provider!r}; only mock is implemented")
-        elif prov in ["claude", "anthropic"]:
-            return MockLLM(system_name)
-        elif prov in ["openai", "gpt4"]:
-            return MockLLM(system_name)
-        return MockLLM(system_name)
