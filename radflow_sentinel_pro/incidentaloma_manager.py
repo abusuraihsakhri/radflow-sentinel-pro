@@ -85,7 +85,7 @@ class FleischnerGuidelines:
 
     SOLID_NODULE_LOW_RISK = {
         "<6mm": {"interval_months": 0, "action": "No follow-up required", "modality": "N/A"},
-        "6-8mm": {"interval_months": 12, "action": "Optional CT at 12 months", "modality": "CT Chest"},
+        "6-8mm": {"interval_months": 6, "action": "CT at 6-12 months, then consider CT at 18-24 months", "modality": "CT Chest"},
         ">8mm": {"interval_months": 3, "action": "CT at 3 months, consider PET/CT or tissue sampling", "modality": "CT Chest"},
     }
 
@@ -125,6 +125,8 @@ class FleischnerGuidelines:
             else:
                 return cls.SUBSOLID_NODULES["ground_glass_>=6mm"]
         elif nodule_type == "part_solid":
+            if size_mm < 6:
+                return cls.SUBSOLID_NODULES["ground_glass_<6mm"]
             return cls.SUBSOLID_NODULES["part_solid"]
         return {"interval_months": 0, "action": "Clinical correlation recommended", "modality": "N/A"}
 
