@@ -5,6 +5,7 @@ Manages the complete lifecycle of incidental findings from detection to resoluti
 """
 
 import datetime
+import math
 import uuid
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
@@ -108,6 +109,8 @@ class FleischnerGuidelines:
         is_high_risk: bool = False,
     ) -> Dict[str, Any]:
         """Get Fleischner guideline recommendation for a pulmonary nodule."""
+        if size_mm < 0 or not math.isfinite(size_mm):
+            raise ValueError("size_mm must be a finite, non-negative measurement")
         if nodule_type == "solid":
             table = cls.SOLID_NODULE_HIGH_RISK if is_high_risk else cls.SOLID_NODULE_LOW_RISK
             if size_mm < 6:
@@ -118,7 +121,7 @@ class FleischnerGuidelines:
                 return table[">8mm"]
         elif nodule_type == "ground_glass":
             if size_mm < 6:
-                return table.get("ground_glass_<6mm", {"interval_months": 0, "action": "No routine follow-up", "modality": "N/A"})
+                return cls.SUBSOLID_NODULES["ground_glass_<6mm"]
             else:
                 return cls.SUBSOLID_NODULES["ground_glass_>=6mm"]
         elif nodule_type == "part_solid":
@@ -183,7 +186,10 @@ class TIRADSGuidelines:
             "TR4": {"action": "FNA if ≥15mm, follow-up if ≥10mm", "interval_months": 12},
             "TR5": {"action": "FNA if ≥10mm, follow-up if ≥5mm", "interval_months": 12},
         }
-        rec = recommendations.get(category, {"action": "Clinical correlation", "interval_months": 0})
+        rec = recommendations.get(category, {"action": "Clinical correlation", "interval_months": 0}).copy()
+
+        if size_mm < 0 or not math.isfinite(size_mm):
+            raise ValueError("size_mm must be a finite, non-negative measurement")
 
         # Size-based FNA thresholds
         fna_thresholds = {"TR1": 999, "TR2": 999, "TR3": 25, "TR4": 15, "TR5": 10}
