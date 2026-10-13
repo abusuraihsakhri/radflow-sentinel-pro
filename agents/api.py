@@ -1,15 +1,13 @@
 """
 FastAPI REST API Server for Radflow Sentinel Pro.
 """
-import os
-import hmac
-from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from .base import AuditLogger, PHIGuard, SecurityException
+from .base import AuditLogger, SecurityException
+from radflow_sentinel_pro.api_security import require_api_token
 from .metrics import GLOBAL_METRICS
-from .models import SystemTaskPayload, ConsensusDossier
+from .models import SystemTaskPayload
 from .supervisor import SystemSupervisor
 
 supervisor = SystemSupervisor(model_provider="mock")
