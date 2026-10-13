@@ -17,7 +17,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 requires-python = ">=3.9"
-dependencies = []
+dependencies = ["fastapi>=0.110,<1", "uvicorn>=0.27,<1", "pydantic>=2,<3", "python-dotenv>=1,<2"]
 
 [project.scripts]
 radflow-sentinel-pro = "radflow_sentinel_pro.cli:main"
@@ -25,3 +25,10 @@ radflow-sentinel-pro = "radflow_sentinel_pro.cli:main"
 [project.urls]
 Homepage = "https://github.com/abusuraihsakhri/radflow-sentinel-pro"
 Repository = "https://github.com/abusuraihsakhri/radflow-sentinel-pro.git"
+
+[tool.setuptools.packages.find]
+include = ["agents*", "radflow_sentinel_pro*"]
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py", "unit_test_*.py"]
+testpaths = ["tests"]
