@@ -4,12 +4,13 @@ FastAPI REST Application & Webhooks for RadFlow Sentinel Pro: Autonomous Radiolo
 from typing import Dict, Any, Optional
 from .models import ClinicalCasePayload
 from .agents import SentinelCoordinatorPro
+from .api_security import require_api_token
 
 coordinator = SentinelCoordinatorPro()
 
 def create_app():
     try:
-        from fastapi import FastAPI
+        from fastapi import FastAPI, Depends, HTTPException
         from pydantic import BaseModel
 
         app = FastAPI(
@@ -35,7 +36,7 @@ def create_app():
         def health():
             return {"status": "HEALTHY", "system": "radflow-sentinel-pro", "domain": "Radiology", "version": "2.0.0-PRO"}
 
-        @app.post("/api/audit")
+        @app.post("/api/audit", dependencies=[Depends(require_api_token)])
         def api_audit(req: AuditRequest):
             payload = ClinicalCasePayload(
                 case_id=req.case_id,
@@ -49,7 +50,7 @@ def create_app():
             )
             return coordinator.process_case(payload)
 
-        @app.post("/api/chat")
+        @app.post("/api/chat", dependencies=[Depends(require_api_token)])
         def api_chat(req: ChatRequest):
             return {"response": coordinator.query_supervisory_chat(req.query)}
 
