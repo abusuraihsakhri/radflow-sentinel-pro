@@ -46,6 +46,14 @@ def test_invalid_nodule_dimensions_rejected(value):
         TIRADSGuidelines.get_recommendation("TR4", value)
 
 
+
+def test_invalid_tirads_features_are_rejected():
+    with pytest.raises(ValueError):
+        TIRADSGuidelines.calculate_score(
+            "unknown", "isoechoic", "wider_than_tall", "smooth", "none"
+        )
+
+
 def test_radiology_negation_is_not_critical():
     parser = NLPReportParser()
     result = parser.parse_report("CT chest. No evidence of pneumothorax.")
