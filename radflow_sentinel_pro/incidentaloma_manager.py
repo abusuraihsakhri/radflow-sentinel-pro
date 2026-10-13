@@ -184,29 +184,40 @@ class TIRADSGuidelines:
 
     @classmethod
     def get_recommendation(cls, category: str, size_mm: float) -> Dict[str, Any]:
-        """Get TI-RADS recommendation based on category and size."""
-        recommendations = {
-            "TR1": {"action": "No FNA or follow-up", "interval_months": 0},
-            "TR2": {"action": "No FNA or follow-up", "interval_months": 0},
-            "TR3": {"action": "FNA if ≥25mm, follow-up if ≥15mm", "interval_months": 12},
-            "TR4": {"action": "FNA if ≥15mm, follow-up if ≥10mm", "interval_months": 12},
-            "TR5": {"action": "FNA if ≥10mm, follow-up if ≥5mm", "interval_months": 12},
-        }
-        rec = recommendations.get(category, {"action": "Clinical correlation", "interval_months": 0}).copy()
-
-        if size_mm < 0 or not math.isfinite(size_mm):
+        """Return the size-dependent initial action for supported ACR TI-RADS tiers."""
+        if not math.isfinite(size_mm) or size_mm < 0:
             raise ValueError("size_mm must be a finite, non-negative measurement")
+        thresholds = {
+            "TR1": (None, None),
+            "TR2": (None, None),
+            "TR3": (25, 15),
+            "TR4": (15, 10),
+            "TR5": (10, 5),
+        }
+        if category not in thresholds:
+            raise ValueError(f"Unsupported TI-RADS category: {category!r}")
 
-        # Size-based FNA thresholds
-        fna_thresholds = {"TR1": 999, "TR2": 999, "TR3": 25, "TR4": 15, "TR5": 10}
-        followup_thresholds = {"TR1": 999, "TR2": 999, "TR3": 15, "TR4": 10, "TR5": 5}
-
-        if size_mm >= fna_thresholds.get(category, 999):
-            rec["action"] = f"FNA recommended (size {size_mm}mm ≥ threshold)"
-        elif size_mm >= followup_thresholds.get(category, 999):
-            rec["action"] = f"Follow-up ultrasound recommended (size {size_mm}mm)"
-
-        return rec
+        biopsy_mm, surveillance_mm = thresholds[category]
+        if biopsy_mm is not None and size_mm >= biopsy_mm:
+            return {
+                "action": f"FNA recommended (size {size_mm:g}mm meets {category} biopsy threshold)",
+                "interval_months": 0,
+                "modality": "Ultrasound-guided FNA",
+                "requires_fna": True,
+            }
+        if surveillance_mm is not None and size_mm >= surveillance_mm:
+            return {
+                "action": f"Follow-up ultrasound recommended (size {size_mm:g}mm)",
+                "interval_months": 12,
+                "modality": "Thyroid ultrasound",
+                "requires_fna": False,
+            }
+        return {
+            "action": "No FNA or routine ultrasound follow-up by TI-RADS size threshold",
+            "interval_months": 0,
+            "modality": "N/A",
+            "requires_fna": False,
+        }
 
 
 class IncidentalomaManager:
@@ -257,20 +268,26 @@ class IncidentalomaManager:
             risk_level = RiskLevel.INTERMEDIATE.value
             guideline = "Clinical judgment"
 
+        months = rec.get("interval_months", 0)
+        requires_fna = rec.get("requires_fna", False)
+        action_required = requires_fna or months > 0
+        scheduled_date = (
+            now if requires_fna else
+            (datetime.datetime.fromisoformat(now) + datetime.timedelta(days=30 * months)).isoformat()
+            if months > 0 else None
+        )
+
         follow_up = FollowUpRecommendation(
             recommendation_id=f"FU-{uuid.uuid4().hex[:6].upper()}",
             incidentaloma_type=incidentaloma_type,
             finding_description=finding_description,
             risk_level=risk_level,
-            recommended_interval_months=rec.get("interval_months", 0),
+            recommended_interval_months=months,
             recommended_modality=rec.get("modality", "N/A"),
             guideline_source=guideline,
             rationale=rec.get("action", "Clinical correlation"),
-            follow_up_status=FollowUpStatus.SCHEDULED.value if rec.get("interval_months", 0) > 0 else FollowUpStatus.RESOLVED.value,
-            scheduled_date=(
-                (datetime.datetime.fromisoformat(now) + datetime.timedelta(days=30 * rec.get("interval_months", 0))).isoformat()
-                if rec.get("interval_months", 0) > 0 else None
-            ),
+            follow_up_status=FollowUpStatus.SCHEDULED.value if action_required else FollowUpStatus.RESOLVED.value,
+            scheduled_date=scheduled_date,
             completed_date=None,
             created_at=now,
         )
