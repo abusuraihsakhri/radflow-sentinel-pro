@@ -7,6 +7,7 @@ import json
 import sys
 from .models import ClinicalCasePayload
 from .agents import SentinelCoordinatorPro
+from .csv_utils import parse_csv_bool
 
 coordinator = SentinelCoordinatorPro()
 
@@ -73,18 +74,22 @@ def main(argv=None):
             fieldnames = list(reader.fieldnames or [])
             rows = list(reader)
 
-        out_fields = fieldnames + ["overall_status", "total_alerts", "stat_critical_alerts", "consensus_summary"]
+        out_fields = list(dict.fromkeys(fieldnames + ["overall_status", "total_alerts", "stat_critical_alerts", "consensus_summary"]))
         out_rows = []
-        for r in rows:
-            case = ClinicalCasePayload(
+        for line_number, r in enumerate(rows, start=2):
+            try:
+                case = ClinicalCasePayload(
                 case_id=r.get("case_id", "CASE-01"),
                 patient_synthetic_id=r.get("patient_synthetic_id", "SYNTH-01"),
                 primary_metric=float(r.get("metric_primary", r.get("primary_metric", 15.0))),
                 secondary_metric=float(r.get("metric_secondary", r.get("secondary_metric", 5.0))),
                 status_flag=r.get("status_flag", r.get("status_text", "NORMAL")),
-                is_stat=bool(r.get("is_stat", r.get("critical_flag", False))),
-            )
-            dossier = coordinator.process_case(case)
+                is_stat=parse_csv_bool(r.get("is_stat", r.get("critical_flag")), field="is_stat"),
+                )
+                dossier = coordinator.process_case(case)
+            except (ValueError, TypeError) as exc:
+                print(f"CSV row {line_number}: {exc}", file=sys.stderr)
+                return 2
             row_dict = dict(r)
             row_dict["overall_status"] = dossier["overall_status"]
             row_dict["total_alerts"] = dossier["total_alerts"]
