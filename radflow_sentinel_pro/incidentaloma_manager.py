@@ -156,13 +156,17 @@ class TIRADSGuidelines:
     def calculate_score(cls, composition: str, echogenicity: str, shape: str,
                         margin: str, echogenic_foci: str) -> int:
         """Calculate TI-RADS total score."""
-        return (
-            cls.TI_RADS_COMPOSITION.get(composition, 0) +
-            cls.TI_RADS_ECHOGENICITY.get(echogenicity, 0) +
-            cls.TI_RADS_SHAPE.get(shape, 0) +
-            cls.TI_RADS_MARGIN.get(margin, 0) +
-            cls.TI_RADS_ECHOGENIC_FOCI.get(echogenic_foci, 0)
+        options = (
+            ("composition", composition, cls.TI_RADS_COMPOSITION),
+            ("echogenicity", echogenicity, cls.TI_RADS_ECHOGENICITY),
+            ("shape", shape, cls.TI_RADS_SHAPE),
+            ("margin", margin, cls.TI_RADS_MARGIN),
+            ("echogenic_foci", echogenic_foci, cls.TI_RADS_ECHOGENIC_FOCI),
         )
+        for label, value, allowed in options:
+            if value not in allowed:
+                raise ValueError(f"Unsupported TI-RADS {label}: {value!r}")
+        return sum(allowed[value] for _, value, allowed in options)
 
     @classmethod
     def get_category(cls, score: int) -> str:
