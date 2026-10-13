@@ -192,6 +192,16 @@ class NLPReportParser:
         self.finding_counter = 0
         self.parse_history: List[Dict[str, Any]] = []
 
+    @staticmethod
+    def _is_negated_mention(text: str, offset: int) -> bool:
+        """Suppress explicit local negations; not a comprehensive clinical NLP model."""
+        clause = re.split(r"[.;\\n]", text[max(0, offset - 90):offset])[-1]
+        return bool(re.search(
+            r"\\b(?:no|without|negative for|absence of|free of|ruled out|"
+            r"no evidence of|no findings of)\\b(?:\\s+\\w+){0,5}\\s*$",
+            clause,
+        ))
+
     def _generate_finding_id(self) -> str:
         self.finding_counter += 1
         return f"FIND-{self.finding_counter:04d}"
@@ -282,6 +292,8 @@ class NLPReportParser:
             for keyword_pattern in config["keywords"]:
                 matches = list(re.finditer(keyword_pattern, text_lower))
                 for match in matches:
+                    if self._is_negated_mention(text_lower, match.start()):
+                        continue
                     # Get surrounding context (±100 chars)
                     start = max(0, match.start() - 100)
                     end = min(len(report_text), match.end() + 100)
