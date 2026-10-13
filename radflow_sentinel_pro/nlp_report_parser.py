@@ -195,10 +195,10 @@ class NLPReportParser:
     @staticmethod
     def _is_negated_mention(text: str, offset: int) -> bool:
         """Suppress explicit local negations; not a comprehensive clinical NLP model."""
-        clause = re.split(r"[.;\\n]", text[max(0, offset - 90):offset])[-1]
+        clause = re.split(r"[.;\n]", text[max(0, offset - 90):offset])[-1]
         return bool(re.search(
-            r"\\b(?:no|without|negative for|absence of|free of|ruled out|"
-            r"no evidence of|no findings of)\\b(?:\\s+\\w+){0,5}\\s*$",
+            r"\b(?:no|without|negative for|absence of|free of|ruled out|"
+            r"no evidence of|no findings of)\b(?:\s+\w+){0,5}\s*$",
             clause,
         ))
 
